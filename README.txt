@@ -1,3 +1,7 @@
+This fork stores my work on projects for CSE6142.
+
+Original text below:
+
 Low Level Virtual Machine (LLVM)
 ================================
 
