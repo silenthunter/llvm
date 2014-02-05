@@ -27,6 +27,9 @@ STATISTIC(loopBlockMin, "Min blocks in a loop count seen in a function");
 STATISTIC(loopBlockMax, "Max blocks in a loop count seen in a function");
 STATISTIC(loopBlockAvg, "Avg blocks in a loop count seen in a function");
 STATISTIC(dominatorAvg, "Avg dominator count seen in a function");
+STATISTIC(loopAllTot, "Total number of loops in any function");
+STATISTIC(loopTopTot, "Total number of top level loops in any function");
+STATISTIC(loopExitTot, "Total number of loop exits in any function");
 
 namespace
 {
@@ -55,6 +58,24 @@ namespace
 
 		}
 
+		void traverseSubLoops(LoopBase<BasicBlock, Loop> *loop, unsigned int *count, unsigned int *exits)
+		{
+			(*count)++;
+
+			//Look for loop exits
+			SmallVector<BasicBlock*, 128> exitVec;
+			loop->getExitingBlocks(exitVec);
+			*exits += exitVec.size();
+
+			//Recurse through sub-loops
+			vector<Loop*> subLoops = loop->getSubLoops();
+
+			for(vector<Loop*>::iterator itr = subLoops.begin(); itr != subLoops.end(); itr++)
+			{
+				traverseSubLoops(*itr, count, exits);
+			}
+		}
+
 		virtual bool runOnFunction(Function &F)
 		{
 			++funcCnt;
@@ -66,12 +87,23 @@ namespace
 			//Get loop info
 			LoopInfo &LI = getAnalysis<LoopInfo>();
 			unsigned int loopBlocks = 0;
+			unsigned int allLoops = 0;
+			unsigned int allLoopExits = 0;
 			for(LoopInfo::iterator itr = LI.begin(); itr != LI.end();)
 			{
 				LoopBase<BasicBlock, Loop> *loopBase = *itr;
 				loopBlocks += loopBase->getBlocks().size();
+
+				//Count sub loops
+				traverseSubLoops(loopBase, &allLoops, &allLoopExits);
+
+				//This is a top lvl loop
+				loopTopTot++;
+
 				itr++;
 			}
+			loopExitTot += allLoopExits;
+			loopAllTot += allLoops;
 			loopBlockTot += loopBlocks;
 			if(loopBlocks > loopBlockMax) loopBlockMax = loopBlocks; 
 			if(loopBlocks < loopBlockMin || loopBlockMin == 0) loopBlockMin = loopBlocks; 
