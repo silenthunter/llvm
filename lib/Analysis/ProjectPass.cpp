@@ -7,9 +7,11 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/Dominators.h"
+#include <set>
 
 using namespace llvm;
 using std::vector;
+using std::set;
 
 STATISTIC(blockAvg, "Average number of blocks in functions");
 STATISTIC(blockMin, "Min number of blocks in functions");
@@ -21,6 +23,9 @@ STATISTIC(avgCFG, "Avg CFG edges seen in a function");
 STATISTIC(loopMin, "Min loop count seen in a function");
 STATISTIC(loopMax, "Max loop count seen in a function");
 STATISTIC(loopAvg, "Avg loop count seen in a function");
+STATISTIC(loopBlockMin, "Min blocks in a loop count seen in a function");
+STATISTIC(loopBlockMax, "Max blocks in a loop count seen in a function");
+STATISTIC(loopBlockAvg, "Avg blocks in a loop count seen in a function");
 STATISTIC(dominatorAvg, "Avg dominator count seen in a function");
 
 namespace
@@ -28,6 +33,7 @@ namespace
 	struct ProjectPass : public FunctionPass
 	{
 		static unsigned int loopTot;
+		static unsigned int loopBlockTot;
 		static unsigned int blockTot;
 		static unsigned int blockDomTot;
 		static unsigned int domTot;
@@ -59,18 +65,19 @@ namespace
 
 			//Get loop info
 			LoopInfo &LI = getAnalysis<LoopInfo>();
-			int loopSize = 0;
+			unsigned int loopBlocks = 0;
 			for(LoopInfo::iterator itr = LI.begin(); itr != LI.end();)
 			{
-				loopSize++;
+				LoopBase<BasicBlock, Loop> *loopBase = *itr;
+				loopBlocks += loopBase->getBlocks().size();
 				itr++;
 			}
+			loopBlockTot += loopBlocks;
+			if(loopBlocks > loopBlockMax) loopBlockMax = loopBlocks; 
+			if(loopBlocks < loopBlockMin || loopBlockMin == 0) loopBlockMin = loopBlocks; 
+			loopBlockAvg = loopBlockTot / funcCnt;
 
 
-			if(loopSize > loopMax) loopMax = loopSize;
-			if(loopSize < loopMin || loopMin == 0) loopMin = loopSize;
-			loopTot == loopSize;
-			loopAvg = loopTot / funcCnt;
 
 			//Get block info
 			unsigned int blockCnt = F.getBasicBlockList().size();
@@ -79,16 +86,41 @@ namespace
 			blockTot += blockCnt;
 			blockAvg = blockTot / funcCnt;
 
-			//Get number of internal edges
+			//Get number of internal edges and loops
+			set<BasicBlock*> loopHead;
+			int loopSize = 0;
 			unsigned int edges = 0;
 			Function::iterator itr = F.begin();
 			while(itr != F.end())
 			{
 				blockDomTot++;
-				edges += itr->getTerminator()->getNumSuccessors();
+				unsigned int numSucc = itr->getTerminator()->getNumSuccessors();
+
+				//Get backedges
+				for(int i = 0; i < numSucc; i++)
+				{
+					BasicBlock *succBlock = itr->getTerminator()->getSuccessor(i);
+					//This is a backedge!
+					if(tree.dominates(succBlock, itr))
+					{
+						loopHead.insert(succBlock);
+					}
+				}
+
+				edges += numSucc;
 				traverseDominators(&tree, itr, tree.getRootNode(), &domTot);
 				itr++;
 			}
+
+			loopSize = loopHead.size();
+
+			//Update loop stats
+			if(loopSize > loopMax) loopMax = loopSize;
+			if(loopSize < loopMin || loopMin == 0) loopMin = loopSize;
+			loopTot += loopSize;
+			loopAvg = loopTot / funcCnt;
+
+			//Update edges
 			if(edges > maxCFG) maxCFG = edges;
 			if(edges < minCFG || minCFG == 0) minCFG = edges;
 			dominatorAvg = domTot / blockDomTot;
@@ -105,6 +137,7 @@ namespace
 	};
 
 	unsigned int ProjectPass::loopTot = 0;
+	unsigned int ProjectPass::loopBlockTot = 0;
 	unsigned int ProjectPass::blockTot = 0;
 	unsigned int ProjectPass::blockDomTot = 0;;
 	unsigned int ProjectPass::domTot = 0;;
