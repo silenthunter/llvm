@@ -23,9 +23,9 @@ STATISTIC(avgCFG, "Avg CFG edges seen in a function");
 STATISTIC(loopMin, "Min loop count seen in a function");
 STATISTIC(loopMax, "Max loop count seen in a function");
 STATISTIC(loopAvg, "Avg loop count seen in a function");
-STATISTIC(loopBlockMin, "Min blocks in a loop count seen in a function");
-STATISTIC(loopBlockMax, "Max blocks in a loop count seen in a function");
-STATISTIC(loopBlockAvg, "Avg blocks in a loop count seen in a function");
+STATISTIC(loopBlockMin, "Min blocks in a loop seen in a function");
+STATISTIC(loopBlockMax, "Max blocks in a loop seen in a function");
+STATISTIC(loopBlockAvg, "Avg blocks in a loop seen in a function");
 STATISTIC(dominatorAvg, "Avg dominator count seen in a function");
 STATISTIC(loopAllTot, "Total number of loops in any function");
 STATISTIC(loopTopTot, "Total number of top level loops in any function");
@@ -35,11 +35,13 @@ namespace
 {
 	struct ProjectPass : public FunctionPass
 	{
+		static bool firstPass;
 		static unsigned int loopTot;
 		static unsigned int loopBlockTot;
 		static unsigned int blockTot;
 		static unsigned int blockDomTot;
 		static unsigned int domTot;
+		static unsigned int cfgTot;
 		static char ID;
 		ProjectPass() : FunctionPass(ID){}
 
@@ -106,7 +108,7 @@ namespace
 			loopAllTot += allLoops;
 			loopBlockTot += loopBlocks;
 			if(loopBlocks > loopBlockMax) loopBlockMax = loopBlocks; 
-			if(loopBlocks < loopBlockMin || loopBlockMin == 0) loopBlockMin = loopBlocks; 
+			if(loopBlocks < loopBlockMin || firstPass) loopBlockMin = loopBlocks; 
 			loopBlockAvg = loopBlockTot / funcCnt;
 
 
@@ -114,7 +116,7 @@ namespace
 			//Get block info
 			unsigned int blockCnt = F.getBasicBlockList().size();
 			if(blockCnt > blockMax) blockMax = blockCnt;
-			if(blockCnt < blockMin || blockMin == 0) blockMin = blockCnt;
+			if(blockCnt < blockMin || firstPass) blockMin = blockCnt;
 			blockTot += blockCnt;
 			blockAvg = blockTot / funcCnt;
 
@@ -148,14 +150,19 @@ namespace
 
 			//Update loop stats
 			if(loopSize > loopMax) loopMax = loopSize;
-			if(loopSize < loopMin || loopMin == 0) loopMin = loopSize;
+			if(loopSize < loopMin || firstPass) loopMin = loopSize;
 			loopTot += loopSize;
 			loopAvg = loopTot / funcCnt;
 
 			//Update edges
 			if(edges > maxCFG) maxCFG = edges;
-			if(edges < minCFG || minCFG == 0) minCFG = edges;
+			if(edges < minCFG || firstPass) minCFG = edges;
+			cfgTot += edges;
+			avgCFG = cfgTot / funcCnt;
+
 			dominatorAvg = domTot / blockDomTot;
+
+			firstPass = false;
 			return false;
 		}
 
@@ -169,10 +176,12 @@ namespace
 	};
 
 	unsigned int ProjectPass::loopTot = 0;
+	unsigned int ProjectPass::cfgTot = 0;
 	unsigned int ProjectPass::loopBlockTot = 0;
 	unsigned int ProjectPass::blockTot = 0;
 	unsigned int ProjectPass::blockDomTot = 0;;
 	unsigned int ProjectPass::domTot = 0;;
+	bool ProjectPass::firstPass = true;
 	char ProjectPass::ID = 0;
 	static RegisterPass<ProjectPass> X("projectpass", "CSE6142 Project 1 Pass", false, true);
 }

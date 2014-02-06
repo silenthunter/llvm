@@ -24,7 +24,6 @@ namespace
 		{
 			//Get dominator info
 			DominatorTree &tree = getAnalysis<DominatorTree>();
-			DomTreeNode *rootNode = tree.getRootNode();
 
 			//Get loop info
 			LoopInfo &LI = getAnalysis<LoopInfo>();
@@ -41,8 +40,8 @@ namespace
 						BasicBlock *succBlock = term->getSuccessor(i);
 						if(succBlock == &(*itr) && isPotentiallyReachable(&(*itr), &(*itr2), &tree, &LI))
 						{
-							//errs() << itr->getName()<<" ->";
-							//errs() << itr2->getName()<<"\n";
+							errs() << /*F.getName() << "." << */itr->getName()<<" -> ";
+							errs() << /*F.getName() << "." << */itr2->getName()<<"\n";
 							warshallLoop++;
 						}
 					}
