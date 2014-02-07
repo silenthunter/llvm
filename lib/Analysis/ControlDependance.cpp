@@ -9,12 +9,20 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/CFG.h"
 #include <vector>
+#include <map>
 
 using namespace llvm;
 using std::vector;
+using std::map;
 
 namespace
 {
+	struct ConditionRef
+	{
+		public:
+		StringRef name;
+		vector<StringRef> depen;
+	};
 	struct ControlDependance : public FunctionPass
 	{
 		static char ID;
@@ -22,6 +30,7 @@ namespace
 
 		virtual bool runOnFunction(Function &F)
 		{
+			map<StringRef, ConditionRef> condMap;
 			//Get dominator info
 			PostDominatorTree &tree = getAnalysis<PostDominatorTree>();
 			//DomTreeNode *rootNode = tree.getRootNode();
@@ -64,14 +73,36 @@ namespace
 						BasicBlock *child = term->getSuccessor(k);
 						if(tree.dominates(blockJ, child))
 						{
-							errs() << blockI->getName() << " -> ";
-							errs() << blockJ->getName() << "\n";
+							//Add the dependant and conditional to a map
+							map<StringRef, ConditionRef>::iterator mapItr = condMap.find(blockI->getName());
+							if(mapItr != condMap.end())
+								mapItr->second.depen.push_back(blockJ->getName());
+							else
+							{	
+								ConditionRef newRef;
+								newRef.name = blockI->getName();
+								newRef.depen.push_back(blockJ->getName());
+								condMap.insert(std::pair<StringRef, ConditionRef>(blockI->getName(), newRef));
+							}
 						}
 						
 					}
 				}
 			}
 
+			//Print all
+			for(map<StringRef, ConditionRef>::iterator itr = condMap.begin(); itr != condMap.end(); itr++)
+			{
+				errs() << itr->second.name << " : ";
+				vector<StringRef> *depens = &itr->second.depen;
+				for(int i = 0; i < depens->size(); i++)
+				{
+					errs() << depens->at(i);
+					if(i != depens->size() - 1)
+						errs() << ", ";
+				}
+				errs() << "\n";
+			}
 			return false;
 
 		}
