@@ -81,7 +81,7 @@ namespace
 
 						varset->variables.insert(varName);
 
-						if(firstSeen) genSet.insert(pair<BasicBlock*, VarSet*>(currBlock, varset));
+						if(firstSeen) genSet[currBlock] =  varset;
 
 						//Kill Set
 						VarSet* killset;
@@ -90,7 +90,7 @@ namespace
 
 						killset->variables.insert(varName);
 
-						if(firstSeen) killSet.insert(pair<BasicBlock*, VarSet*>(currBlock, killset));
+						if(firstSeen) killSet[currBlock] = killset;
 
 						errs() << "\n";
 					}
@@ -106,17 +106,22 @@ namespace
 				if(outset == NULL)
 				{
 					outset = new VarSet();
-					outSet.insert(pair<BasicBlock*, VarSet*>(currBlock, outset));
+					outSet[currBlock] =  outset;
 				}
 				if(inset == NULL)
 				{
 					inset = new InSet();
-					inSet.insert(pair<BasicBlock*, InSet*>(currBlock, inset));
+					inSet[currBlock] =  inset;
 				}
 				if(killset == NULL)
 				{
 					killset = new VarSet();
-					outSet.insert(pair<BasicBlock*, VarSet*>(currBlock, killset));
+					killSet[currBlock] =  killset;
+				}
+				if(genset == NULL)
+				{
+					genset = new VarSet();
+					genSet[currBlock] =  genset;
 				}
 
 				set<string> newOut;
@@ -143,11 +148,15 @@ namespace
 				for(set<string>::iterator strItr = newOut.begin(); 
 				strItr != newOut.end(); strItr++)
 					if(outset->variables.find(*strItr) == outset->variables.end())
+					{
 						hasChanged = true;
+					}
 				for(set<string>::iterator strItr = outset->variables.begin(); 
 				strItr != outset->variables.end(); strItr++)
 					if(newOut.find(*strItr) == newOut.end())
+					{
 						hasChanged = true;
+					}
 
 				//Clear and replace old variables
 				outset->variables.clear();
@@ -156,9 +165,12 @@ namespace
 					outset->variables.insert(*varItr);
 
 				//Queue next blocks
-				TerminatorInst* termInst = currBlock->getTerminator();
-				for(unsigned int i = 0; i < termInst->getNumSuccessors(); i++)
-					changedBlocks.push(termInst->getSuccessor(i));
+				if(hasChanged)
+				{
+					TerminatorInst* termInst = currBlock->getTerminator();
+					for(unsigned int i = 0; i < termInst->getNumSuccessors(); i++)
+						changedBlocks.push(termInst->getSuccessor(i));
+				}
 
 
 			}
