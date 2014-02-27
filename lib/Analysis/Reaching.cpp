@@ -47,10 +47,15 @@ namespace
 
 		virtual bool runOnFunction(Function &F)
 		{
-			Function::BasicBlockListType &blocks = F.getBasicBlockList();
-			for(Function::iterator itr = blocks.begin(); itr != blocks.end(); itr++)
+			changedBlocks.push(&F.getEntryBlock());
+
+			BasicBlock* currBlock = NULL;
+			while(!changedBlocks.empty())
 			{
-				for(BasicBlock::iterator itr2 = itr->begin(); itr2 != itr->end(); itr2++)
+				currBlock = changedBlocks.front();
+				changedBlocks.pop();
+
+				for(BasicBlock::iterator itr2 = currBlock->begin(); itr2 != currBlock->end(); itr2++)
 				{
 					if(itr2->hasName() )
 					{
@@ -67,7 +72,7 @@ namespace
 						}*/
 
 						bool firstSeen = false;
-						VarSet* varset = genSet[&*itr];
+						VarSet* varset = genSet[currBlock];
 						if(varset == NULL)
 						{
 							varset = new VarSet();
@@ -76,42 +81,42 @@ namespace
 
 						varset->variables.insert(varName);
 
-						if(firstSeen) genSet.insert(pair<BasicBlock*, VarSet*>(&*itr, varset));
+						if(firstSeen) genSet.insert(pair<BasicBlock*, VarSet*>(currBlock, varset));
 
 						//Kill Set
 						VarSet* killset;
 						if(firstSeen) killset = new VarSet();
-						else killset = killSet[&*itr];
+						else killset = killSet[currBlock];
 
 						killset->variables.insert(varName);
 
-						if(firstSeen) killSet.insert(pair<BasicBlock*, VarSet*>(&*itr, killset));
+						if(firstSeen) killSet.insert(pair<BasicBlock*, VarSet*>(currBlock, killset));
 
 						errs() << "\n";
 					}
 				}//End instruction loop
 
 				//Calculate outSet
-				VarSet* genset = genSet[&*itr];
-				VarSet* killset = killSet[&*itr];
+				VarSet* genset = genSet[currBlock];
+				VarSet* killset = killSet[currBlock];
 
-				VarSet* outset = outSet[&*itr];
-				InSet* inset = inSet[&*itr];
+				VarSet* outset = outSet[currBlock];
+				InSet* inset = inSet[currBlock];
 
 				if(outset == NULL)
 				{
 					outset = new VarSet();
-					outSet.insert(pair<BasicBlock*, VarSet*>(&*itr, outset));
+					outSet.insert(pair<BasicBlock*, VarSet*>(currBlock, outset));
 				}
 				if(inset == NULL)
 				{
 					inset = new InSet();
-					inSet.insert(pair<BasicBlock*, InSet*>(&*itr, inset));
+					inSet.insert(pair<BasicBlock*, InSet*>(currBlock, inset));
 				}
 				if(killset == NULL)
 				{
 					killset = new VarSet();
-					outSet.insert(pair<BasicBlock*, VarSet*>(&*itr, killset));
+					outSet.insert(pair<BasicBlock*, VarSet*>(currBlock, killset));
 				}
 
 				set<string> newOut;
@@ -151,8 +156,8 @@ namespace
 					outset->variables.insert(*varItr);
 
 				//Queue next blocks
-				TerminatorInst* termInst = itr->getTerminator();
-				for(int i = 0; i < termInst->getNumSuccessors(); i++)
+				TerminatorInst* termInst = currBlock->getTerminator();
+				for(unsigned int i = 0; i < termInst->getNumSuccessors(); i++)
 					changedBlocks.push(termInst->getSuccessor(i));
 
 
