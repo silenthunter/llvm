@@ -10,10 +10,12 @@
 #include <utility>
 #include <iostream>
 #include <set>
+#include <queue>
 
 using namespace llvm;
 using std::map;
 using std::set;
+using std::queue;
 using std::string;
 using std::pair;
 
@@ -41,6 +43,7 @@ namespace
 		map<BasicBlock*, VarSet*> killSet;
 		map<BasicBlock*, VarSet*> outSet;
 		map<BasicBlock*, InSet*> inSet;
+		queue<BasicBlock*> changedBlocks;
 
 		virtual bool runOnFunction(Function &F)
 		{
@@ -114,18 +117,43 @@ namespace
 				set<string> newOut;
 
 				//Add IN
-				for(map<BasicBlock*, set<string> >::iterator blockIn = inset->variables.begin(); blockIn != inset->variables.end(); blockIn++)
-					for(set<string>::iterator strItr = blockIn->second.begin(); strItr != blockIn->second.end(); strItr++)
+				for(map<BasicBlock*, set<string> >::iterator blockIn = inset->variables.begin();
+				blockIn != inset->variables.end(); blockIn++)
+					for(set<string>::iterator strItr = blockIn->second.begin(); 
+					strItr != blockIn->second.end(); strItr++)
 						newOut.insert(*strItr);
 
 				//Remove KILL
-				for(set<string>::iterator strItr = killset->variables.begin(); strItr != killset->variables.end(); strItr++)
+				for(set<string>::iterator strItr = killset->variables.begin(); 
+				strItr != killset->variables.end(); strItr++)
 					newOut.erase(*strItr);
+
+				//Add Gen
+				for(set<string>::iterator strItr = genset->variables.begin(); 
+				strItr != genset->variables.end(); strItr++)
+					newOut.insert(*strItr);
+
+				//Has the output changed?
+				bool hasChanged = false;
+				for(set<string>::iterator strItr = newOut.begin(); 
+				strItr != newOut.end(); strItr++)
+					if(outset->variables.find(*strItr) == outset->variables.end())
+						hasChanged = true;
+				for(set<string>::iterator strItr = outset->variables.begin(); 
+				strItr != outset->variables.end(); strItr++)
+					if(newOut.find(*strItr) == newOut.end())
+						hasChanged = true;
 
 				//Clear and replace old variables
 				outset->variables.clear();
-				for(set<string>::iterator varItr = newOut.begin(); varItr != newOut.end(); varItr++)
+				for(set<string>::iterator varItr = newOut.begin(); 
+				varItr != newOut.end(); varItr++)
 					outset->variables.insert(*varItr);
+
+				//Queue next blocks
+				TerminatorInst* termInst = itr->getTerminator();
+				for(int i = 0; i < termInst->getNumSuccessors(); i++)
+					changedBlocks.push(termInst->getSuccessor(i));
 
 
 			}
