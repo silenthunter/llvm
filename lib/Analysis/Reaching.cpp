@@ -58,22 +58,21 @@ namespace
 				changedBlocks.pop();
 				//currBlock = &*itr;
 
+				//Loop through all instructions
 				for(BasicBlock::iterator itr2 = currBlock->begin(); itr2 != currBlock->end(); itr2++)
 				{
+					//Is this an assignment instruction?
 					if(itr2->hasName() )
 					{
 						errs() << itr2->getOpcodeName() << " : ";
+						string localName = itr2->getName();
 						string varName = itr2->getName();
+						varName.append("/");
+						varName.append(currBlock->getName());
 
 						errs() << varName;
 
-						/*int numOpr = itr2->getNumOperands();
-						for(int i = 0; i < numOpr; i++)
-						{
-							Value* oper = itr2->getOperand(i);
-							errs() << "[" << oper->getName() << "]";
-						}*/
-
+						//Add this variable to the genSet
 						bool firstSeen = false;
 						VarSet* varset = genSet[currBlock];
 						if(varset == NULL)
@@ -91,7 +90,25 @@ namespace
 						if(firstSeen) killset = new VarSet();
 						else killset = killSet[currBlock];
 
-						killset->variables.insert(varName);
+						//Find if this kills an inputted variable
+						InSet* inset = inSet[currBlock];
+						if(inset != NULL)
+						for(map<BasicBlock*, set<string> >::iterator blockIn = inset->variables.begin();
+						blockIn != inset->variables.end(); blockIn++)
+							for(set<string>::iterator strItr = blockIn->second.begin(); 
+							strItr != blockIn->second.end(); strItr++)
+							{
+								int divideIdx = strItr->find('/');
+								bool matchesLocal = strcmp(localName.c_str(),
+									strItr->substr(0, divideIdx).c_str()) == 0;
+
+								if(matchesLocal)
+								{
+									errs() << "Killed: " << *strItr << "\n";
+									killset->variables.insert(*strItr);
+								}
+							}
+
 
 						if(firstSeen) killSet[currBlock] = killset;
 
@@ -216,6 +233,32 @@ namespace
 			errs() << "------------------------------------\n";
 
 			return false;
+		}
+
+		BasicBlock* reaches(string variableName, BasicBlock* dest)
+		{
+			InSet* inset = inSet[dest];
+			if(inset == NULL) return NULL;
+		
+			for(map<BasicBlock*, set<string> >::iterator blockIn = inset->variables.begin();
+			blockIn != inset->variables.end(); blockIn++)
+				for(set<string>::iterator strItr = blockIn->second.begin(); 
+				strItr != blockIn->second.end(); strItr++)
+				{
+					int dividerIdx = strItr->find('/');
+					if(strcmp(variableName.c_str(), strItr->substr(0, dividerIdx).c_str()) == 0)
+					{
+						string blockName = strItr->substr(dividerIdx + 1);
+						Function* F = dest->getParent();
+						for(Function::iterator funcItr = F->begin(); funcItr != F->end(); funcItr++)
+						{
+							if(strcmp(funcItr->getName().str().c_str(), blockName.c_str()) == 0)
+								return &*funcItr;
+						}
+					}
+				}
+
+			return NULL;
 		}
 	};
 
