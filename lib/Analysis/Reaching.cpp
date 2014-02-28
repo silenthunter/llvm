@@ -51,9 +51,12 @@ namespace
 
 			BasicBlock* currBlock = NULL;
 			while(!changedBlocks.empty())
+			//for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
 			{
+				//errs() << "Blocks"<< changedBlocks.size() << "\n";
 				currBlock = changedBlocks.front();
 				changedBlocks.pop();
+				//currBlock = &*itr;
 
 				for(BasicBlock::iterator itr2 = currBlock->begin(); itr2 != currBlock->end(); itr2++)
 				{
@@ -81,7 +84,7 @@ namespace
 
 						varset->variables.insert(varName);
 
-						if(firstSeen) genSet[currBlock] =  varset;
+						if(firstSeen) genSet[currBlock] = varset;
 
 						//Kill Set
 						VarSet* killset;
@@ -103,10 +106,12 @@ namespace
 				VarSet* outset = outSet[currBlock];
 				InSet* inset = inSet[currBlock];
 
+				bool firstCompute = false;
 				if(outset == NULL)
 				{
 					outset = new VarSet();
 					outSet[currBlock] =  outset;
+					firstCompute = true;
 				}
 				if(inset == NULL)
 				{
@@ -164,16 +169,51 @@ namespace
 				varItr != newOut.end(); varItr++)
 					outset->variables.insert(*varItr);
 
-				//Queue next blocks
-				if(hasChanged)
+				TerminatorInst* termInst = currBlock->getTerminator();
+				//errs() << currBlock->getName() << ": " << termInst->getNumSuccessors() << "\n";
+				for(unsigned int i = 0; i < termInst->getNumSuccessors(); i++)
 				{
-					TerminatorInst* termInst = currBlock->getTerminator();
-					for(unsigned int i = 0; i < termInst->getNumSuccessors(); i++)
-						changedBlocks.push(termInst->getSuccessor(i));
+					BasicBlock* nextBlock = termInst->getSuccessor(i);
+					//Set next block's inputs
+					InSet* nextIn = inSet[nextBlock];
+
+					if(nextIn == NULL)
+					{
+						nextIn = new InSet();
+						inSet[nextBlock] = nextIn;
+					}
+
+					nextIn->variables[currBlock] = outset->variables;
+
+					//Queue next blocks
+					if(hasChanged || firstCompute)
+					{
+						changedBlocks.push(nextBlock);
+					}
 				}
 
 
 			}
+
+			errs() << "------------------------------------\n";
+			errs() << F.getName() << "\n";
+
+			for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
+			{
+				errs() << itr->getName() << ": ";
+				for(set<string>::iterator blockItr = outSet[&*itr]->variables.begin(); 
+				blockItr != outSet[&*itr]->variables.end(); blockItr++)
+				{
+					errs() << *blockItr << ", ";
+				}
+				/*for(map<BasicBlock*, set<string> >::iterator blockItr = inSet[&*itr]->variables.begin(); 
+				blockItr != inSet[&*itr]->variables.end(); blockItr++)
+				{
+					errs() << blockItr->first->getName() << ", ";
+				}*/
+				errs() << "\n";
+			}
+			errs() << "------------------------------------\n";
 
 			return false;
 		}
