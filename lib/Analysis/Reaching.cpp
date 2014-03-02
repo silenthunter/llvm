@@ -242,11 +242,13 @@ namespace
 		
 			for(map<BasicBlock*, set<string> >::iterator blockIn = inset->variables.begin();
 			blockIn != inset->variables.end(); blockIn++)
+			{
 				for(set<string>::iterator strItr = blockIn->second.begin(); 
 				strItr != blockIn->second.end(); strItr++)
 				{
 					int dividerIdx = strItr->find('/');
-					if(strcmp(variableName.c_str(), strItr->substr(0, dividerIdx).c_str()) == 0)
+					string subStr = strItr->substr(0, dividerIdx);
+					if(strcmp(variableName.c_str(), subStr.c_str()) == 0)
 					{
 						string blockName = strItr->substr(dividerIdx + 1);
 						Function* F = dest->getParent();
@@ -257,6 +259,7 @@ namespace
 						}
 					}
 				}
+			}
 
 			return NULL;
 		}
