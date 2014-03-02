@@ -19,7 +19,10 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include "../../Analysis/Reaching.cpp"
+#include <vector>
 using namespace llvm;
+
+using std::vector;
 
 namespace {
   // Hello - The first implementation, without getAnalysisUsage.
@@ -28,6 +31,7 @@ namespace {
     Project2() : FunctionPass(ID) {}
 
 	map<Value*, APInt> constantInts;
+	vector<Instruction*> toErase;
 
 	virtual bool runOnFunction(Function &F)
 	{
@@ -39,9 +43,7 @@ namespace {
 			//Go through instructions
 			for(BasicBlock::iterator blockItr = itr->begin(); blockItr != itr->end(); blockItr++)
 			{
-				//if(!blockItr->hasName())continue;
 				if(StoreInst* SI = dyn_cast<StoreInst>(blockItr))
-				//if(LoadInst* SI = dyn_cast<LoadInst>(blockItr))
 				{
 
 					errs() << *blockItr << "\n";
@@ -62,34 +64,54 @@ namespace {
 					{
 						errs() << varName << " : " << &*oper2 << "\n";
 						constantInts[oper2] = CI->getValue();
-						errs() <<"Storing: " << varName << "\n";
+						errs() <<"Storing(" << oper2 << "): " << CI->getValue() << "\n";
+
+						toErase.push_back(&*blockItr);
 					}
 					errs() << "\n";
 				}
-				else //if(UnaryInstruction* UL = dyn_cast<UnaryInstruction>(blockItr))
+				//Remove temporary variables that load constant
+				else if(LoadInst* LI = dyn_cast<LoadInst>(blockItr))
+				{
+					Value* operand = blockItr->getOperand(0);
+
+					if(constantInts.find(operand) != constantInts.end())
+					{
+						APInt constVal = constantInts[operand];
+						constantInts[&*blockItr] = constVal;
+
+						toErase.push_back(&*blockItr);
+					}
+				}
+				//Replace constants
+				else
 				{
 					errs() << *blockItr << "\n";
-					errs() << &*blockItr << " = ";
 					int operNum = blockItr->getNumOperands();
 					for(int i = 0; i < operNum; i++)
 					{
 						Value* operand = blockItr->getOperand(i);
-						errs() << ", " << operand;
 
-						if(constantInts.find(operand) != constantInts.end())
+						BasicBlock* src = reaching.reaches(operand, &*itr);
+						if(src != NULL)
+							errs() << "Reaching!!!!!!!!!!!!!!!!!!!!\n";
+
+						if(constantInts.find(operand) != constantInts.end() && src != NULL)
 						{
-							errs() << "!!!";
+
+							APInt constInt = constantInts[operand];
+
+							errs() << "Setting const(" << operand << "): " << constInt << "\n";
+							ConstantInt* constInst = ConstantInt::get(F.getContext(), constInt);
+							errs() << "Constant = " << *constInst << "\n";
+
+							blockItr->setOperand(i, constInst);
 						}
 					}
 					errs() << "\n";
 
 					//errs() << &*blockItr << "\n";
 				}
-				/*else if(LoadInst* LI = dyn_cast<LoadInst>(blockItr))
-				{
-					errs() << *blockItr << "\n";
-					errs() << &*blockItr << "\n";
-				}*/
 			}
 		}
 

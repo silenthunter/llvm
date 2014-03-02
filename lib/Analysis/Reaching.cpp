@@ -27,13 +27,15 @@ namespace
 		struct VarSet
 		{
 			public:
-			set<string> variables;
+			set<Value*> variables;
+			map<Value*, BasicBlock*> sources;
 		};
 
 		struct InSet
 		{
 			public:
-			map<BasicBlock*, set<string> > variables;
+			map<BasicBlock*, set<Value*> > variables;
+			map<BasicBlock*, map<Value*, BasicBlock*> > sources;
 		};
 
 		static char ID;
@@ -70,7 +72,7 @@ namespace
 						varName.append("/");
 						varName.append(currBlock->getName());
 
-						errs() << varName;
+						errs() << varName << "\n";
 
 						//Add this variable to the genSet
 						bool firstSeen = false;
@@ -81,7 +83,8 @@ namespace
 							firstSeen = true;
 						}
 
-						varset->variables.insert(varName);
+						varset->variables.insert(&*itr2);
+						varset->sources[&*itr2] = currBlock;
 
 						if(firstSeen) genSet[currBlock] = varset;
 
@@ -93,18 +96,19 @@ namespace
 						//Find if this kills an inputted variable
 						InSet* inset = inSet[currBlock];
 						if(inset != NULL)
-						for(map<BasicBlock*, set<string> >::iterator blockIn = inset->variables.begin();
+						for(map<BasicBlock*, set<Value*> >::iterator blockIn = inset->variables.begin();
 						blockIn != inset->variables.end(); blockIn++)
-							for(set<string>::iterator strItr = blockIn->second.begin(); 
+							for(set<Value*>::iterator strItr = blockIn->second.begin(); 
 							strItr != blockIn->second.end(); strItr++)
 							{
-								int divideIdx = strItr->find('/');
+								/*int divideIdx = strItr->find('/');
 								bool matchesLocal = strcmp(localName.c_str(),
-									strItr->substr(0, divideIdx).c_str()) == 0;
+									strItr->substr(0, divideIdx).c_str()) == 0;*/
 
-								if(matchesLocal)
+								if(*strItr == &*itr2)
 								{
-									errs() << "Killed: " << *strItr << "\n";
+									errs() << "Killed: " << (*strItr)->getName()
+										<< "(" << *strItr << ")\n";
 									killset->variables.insert(*strItr);
 								}
 							}
@@ -146,34 +150,44 @@ namespace
 					genSet[currBlock] =  genset;
 				}
 
-				set<string> newOut;
+				set<Value*> newOut;
+				map<Value*, BasicBlock*> newOutSrc;
 
 				//Add IN
-				for(map<BasicBlock*, set<string> >::iterator blockIn = inset->variables.begin();
+				for(map<BasicBlock*, set<Value*> >::iterator blockIn = inset->variables.begin();
 				blockIn != inset->variables.end(); blockIn++)
-					for(set<string>::iterator strItr = blockIn->second.begin(); 
+					for(set<Value*>::iterator strItr = blockIn->second.begin(); 
 					strItr != blockIn->second.end(); strItr++)
+					{
 						newOut.insert(*strItr);
+						newOutSrc[*strItr] = inset->sources[blockIn->first][*strItr];
+					}
 
 				//Remove KILL
-				for(set<string>::iterator strItr = killset->variables.begin(); 
+				for(set<Value*>::iterator strItr = killset->variables.begin(); 
 				strItr != killset->variables.end(); strItr++)
+				{
 					newOut.erase(*strItr);
+					newOutSrc.erase(*strItr);
+				}
 
 				//Add Gen
-				for(set<string>::iterator strItr = genset->variables.begin(); 
+				for(set<Value*>::iterator strItr = genset->variables.begin(); 
 				strItr != genset->variables.end(); strItr++)
+				{
 					newOut.insert(*strItr);
+					newOutSrc[*strItr] = genset->sources[*strItr];
+				}
 
 				//Has the output changed?
 				bool hasChanged = false;
-				for(set<string>::iterator strItr = newOut.begin(); 
+				for(set<Value*>::iterator strItr = newOut.begin(); 
 				strItr != newOut.end(); strItr++)
 					if(outset->variables.find(*strItr) == outset->variables.end())
 					{
 						hasChanged = true;
 					}
-				for(set<string>::iterator strItr = outset->variables.begin(); 
+				for(set<Value*>::iterator strItr = outset->variables.begin(); 
 				strItr != outset->variables.end(); strItr++)
 					if(newOut.find(*strItr) == newOut.end())
 					{
@@ -182,9 +196,13 @@ namespace
 
 				//Clear and replace old variables
 				outset->variables.clear();
-				for(set<string>::iterator varItr = newOut.begin(); 
+				outset->sources.clear();
+				for(set<Value*>::iterator varItr = newOut.begin(); 
 				varItr != newOut.end(); varItr++)
+				{
 					outset->variables.insert(*varItr);
+					outset->sources[*varItr] = newOutSrc[*varItr];
+				}
 
 				TerminatorInst* termInst = currBlock->getTerminator();
 				//errs() << currBlock->getName() << ": " << termInst->getNumSuccessors() << "\n";
@@ -201,6 +219,7 @@ namespace
 					}
 
 					nextIn->variables[currBlock] = outset->variables;
+					nextIn->sources[currBlock] = outset->sources;
 
 					//Queue next blocks
 					if(hasChanged || firstCompute)
@@ -218,10 +237,10 @@ namespace
 			for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
 			{
 				errs() << itr->getName() << ": ";
-				for(set<string>::iterator blockItr = outSet[&*itr]->variables.begin(); 
+				for(set<Value*>::iterator blockItr = outSet[&*itr]->variables.begin(); 
 				blockItr != outSet[&*itr]->variables.end(); blockItr++)
 				{
-					errs() << *blockItr << ", ";
+					errs() << (*blockItr)->getName() << "/" << outSet[&*itr]->sources[*blockItr]->getName()<< ", ";
 				}
 				/*for(map<BasicBlock*, set<string> >::iterator blockItr = inSet[&*itr]->variables.begin(); 
 				blockItr != inSet[&*itr]->variables.end(); blockItr++)
@@ -235,32 +254,20 @@ namespace
 			return false;
 		}
 
-		BasicBlock* reaches(string variableName, BasicBlock* dest)
+		BasicBlock* reaches(Value* variable, BasicBlock* dest)
 		{
 			InSet* inset = inSet[dest];
 			if(inset == NULL) return NULL;
-		
-			for(map<BasicBlock*, set<string> >::iterator blockIn = inset->variables.begin();
-			blockIn != inset->variables.end(); blockIn++)
+
+			for(map<BasicBlock*, map<Value*, BasicBlock*> >::iterator itr = inset->sources.begin();
+				itr != inset->sources.end(); itr++)
 			{
-				for(set<string>::iterator strItr = blockIn->second.begin(); 
-				strItr != blockIn->second.end(); strItr++)
+				if(itr->second.find(variable) != itr->second.end())
 				{
-					int dividerIdx = strItr->find('/');
-					string subStr = strItr->substr(0, dividerIdx);
-					if(strcmp(variableName.c_str(), subStr.c_str()) == 0)
-					{
-						string blockName = strItr->substr(dividerIdx + 1);
-						Function* F = dest->getParent();
-						for(Function::iterator funcItr = F->begin(); funcItr != F->end(); funcItr++)
-						{
-							if(strcmp(funcItr->getName().str().c_str(), blockName.c_str()) == 0)
-								return &*funcItr;
-						}
-					}
+					return itr->second[variable];
 				}
 			}
-
+		
 			return NULL;
 		}
 	};
