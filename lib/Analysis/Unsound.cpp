@@ -19,7 +19,42 @@ namespace {
 	virtual bool runOnFunction(Function &F)
 	{
 		Reaching &reaching = getAnalysis<Reaching>();
-		errs() << "Test\n";
+
+		for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
+		{
+			set<Value*> localAssigns;
+			for(BasicBlock::iterator blockItr = itr->begin(); blockItr != itr->end(); blockItr++)
+			{
+				if(dyn_cast<AllocaInst>(&*blockItr))
+				{
+					continue;
+				}
+				else if(dyn_cast<StoreInst>(&*blockItr))
+				{
+					Value* storeOper = blockItr->getOperand(1);
+					localAssigns.insert(storeOper);
+					continue;
+				}
+
+				localAssigns.insert(&*blockItr);
+
+				int numOper = blockItr->getNumOperands();
+				for(int i = 0; i < numOper; i++)
+				{
+					Value* oper = blockItr->getOperand(i);
+
+					//We don't care about jumps to basic block or the use of constants
+					if(dyn_cast<Constant>(oper))continue;
+					if(dyn_cast<BasicBlock>(oper))continue;
+
+					if(localAssigns.find(oper) == localAssigns.end() && !reaching.reaches(oper, &*itr))
+					{
+						errs() << "Unsafe(" << *oper << "): " << *blockItr << "\n";
+					}
+				}
+			}
+		}
+
 		return false;
 	}
 

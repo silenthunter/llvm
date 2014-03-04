@@ -69,11 +69,20 @@ namespace
 				for(BasicBlock::iterator itr2 = currBlock->begin(); itr2 != currBlock->end(); itr2++)
 				{
 					//Is this an assignment instruction?
-					if(dyn_cast<StoreInst>(itr2) || dyn_cast<LoadInst>(itr2) || dyn_cast<AllocaInst>(itr2))
+					if(dyn_cast<StoreInst>(itr2) || dyn_cast<LoadInst>(itr2))
 					{
-						errs() << itr2->getOpcodeName() << " : ";
-						string localName = itr2->getName();
-						string varName = itr2->getName();
+
+						Instruction* val = &*itr2;
+						
+						//The second operand is actually being assigned
+						if(dyn_cast<StoreInst>(val))
+						{
+							val = dyn_cast<Instruction>(val->getOperand(1));
+						}
+
+						errs() << val->getOpcodeName() << " : ";
+						string localName = val->getName();
+						string varName = val->getName();
 						varName.append("/");
 						varName.append(currBlock->getName());
 
@@ -88,8 +97,8 @@ namespace
 							firstSeen = true;
 						}
 
-						varset->variables.insert(&*itr2);
-						varset->sources[&*itr2] = currBlock;
+						varset->variables.insert(val);
+						varset->sources[val] = currBlock;
 
 						if(firstSeen) genSet[currBlock] = varset;
 
@@ -110,7 +119,7 @@ namespace
 								bool matchesLocal = strcmp(localName.c_str(),
 									strItr->substr(0, divideIdx).c_str()) == 0;*/
 
-								if(*strItr == &*itr2)
+								if(*strItr == val)
 								{
 									errs() << "Killed: " << (*strItr)->getName()
 										<< "(" << *strItr << ")\n";
@@ -264,8 +273,8 @@ namespace
 
 			//See if the variable is generated in this block
 			VarSet* genset = genSet[dest];
-			if(genset->variables.find(variable) != genset->variables.end())
-				return dest;
+			/*if(genset->variables.find(variable) != genset->variables.end())
+				return dest;*/
 
 			InSet* inset = inSet[dest];
 			if(inset == NULL) return NULL;
