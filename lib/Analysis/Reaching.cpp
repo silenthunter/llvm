@@ -1,5 +1,9 @@
+#ifndef PROJECT2_REACH
+#define PROJECT2_REACH
+
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/InstrTypes.h"
@@ -11,6 +15,7 @@
 #include <iostream>
 #include <set>
 #include <queue>
+#include <map>
 
 using namespace llvm;
 using std::map;
@@ -64,7 +69,7 @@ namespace
 				for(BasicBlock::iterator itr2 = currBlock->begin(); itr2 != currBlock->end(); itr2++)
 				{
 					//Is this an assignment instruction?
-					if(itr2->hasName() )
+					if(dyn_cast<StoreInst>(itr2) || dyn_cast<LoadInst>(itr2) || dyn_cast<AllocaInst>(itr2))
 					{
 						errs() << itr2->getOpcodeName() << " : ";
 						string localName = itr2->getName();
@@ -256,9 +261,15 @@ namespace
 
 		BasicBlock* reaches(Value* variable, BasicBlock* dest)
 		{
+
+			//See if the variable is generated in this block
+			VarSet* genset = genSet[dest];
+			if(genset->variables.find(variable) != genset->variables.end())
+				return dest;
+
 			InSet* inset = inSet[dest];
 			if(inset == NULL) return NULL;
-
+			//See if this is an input variable
 			for(map<BasicBlock*, map<Value*, BasicBlock*> >::iterator itr = inset->sources.begin();
 				itr != inset->sources.end(); itr++)
 			{
@@ -272,6 +283,7 @@ namespace
 		}
 	};
 
-	char Reaching::ID = 0;
-	static RegisterPass<Reaching> X("reaching", "CSE6142 Project 2 Reaching Pass", false, true);
+	//char Reaching::ID = 0;
+	///static RegisterPass<Reaching> X("reaching", "CSE6142 Project 2 Reaching Pass", false, true);
 }
+#endif

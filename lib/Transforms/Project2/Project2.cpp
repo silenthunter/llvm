@@ -1,28 +1,19 @@
-//===- Hello.cpp - Example code from "Writing an LLVM Pass" ---------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file implements two versions of the LLVM "Hello World" pass described
-// in docs/WritingAnLLVMPass.html
-//
-//===----------------------------------------------------------------------===//
-
-#define DEBUG_TYPE "hello"
+#define DEBUG_TYPE "Project2Const"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include "../../Analysis/Reaching.cpp"
 #include <vector>
-using namespace llvm;
+#include <map>
+#include <iostream>
+iusing namespace llvm;
 
 using std::vector;
+using std::map;
+using std::string;
 
 namespace {
   // Hello - The first implementation, without getAnalysisUsage.
