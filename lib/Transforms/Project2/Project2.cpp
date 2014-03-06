@@ -9,7 +9,7 @@
 #include <vector>
 #include <map>
 #include <iostream>
-iusing namespace llvm;
+using namespace llvm;
 
 using std::vector;
 using std::map;
@@ -37,7 +37,7 @@ namespace {
 				if(StoreInst* SI = dyn_cast<StoreInst>(blockItr))
 				{
 
-					errs() << *blockItr << "\n";
+					//errs() << *blockItr << "\n";
 
 					//Check for constant operands
 					int numOperands = blockItr->getNumOperands();
@@ -53,13 +53,12 @@ namespace {
 					//Check if a constant is being stored
 					if(llvm::ConstantInt* CI = dyn_cast<llvm::ConstantInt>(oper1))
 					{
-						errs() << varName << " : " << &*oper2 << "\n";
+						//errs() << varName << " : " << &*oper2 << "\n";
 						constantInts[oper2] = CI->getValue();
-						errs() <<"Storing(" << oper2 << "): " << CI->getValue() << "\n";
+						//errs() <<"Storing(" << oper2 << "): " << CI->getValue() << "\n";
 
 						toErase.push_back(&*blockItr);
 					}
-					errs() << "\n";
 				}
 				//Remove temporary variables that load constant
 				else if(LoadInst* LI = dyn_cast<LoadInst>(blockItr))
@@ -77,29 +76,33 @@ namespace {
 				//Replace constants
 				else
 				{
-					errs() << *blockItr << "\n";
+					//errs() << *blockItr << "\n";
 					int operNum = blockItr->getNumOperands();
 					for(int i = 0; i < operNum; i++)
 					{
 						Value* operand = blockItr->getOperand(i);
 
-						BasicBlock* src = reaching.reaches(operand, &*itr);
-						if(src != NULL)
-							errs() << "Reaching!!!!!!!!!!!!!!!!!!!!\n";
+						bool isAvail = reaching.available(operand, &*itr);
+						if(isAvail)
+							errs() << "Reaching!!!!!!!!!!\n";
 
-						if(constantInts.find(operand) != constantInts.end() && src != NULL)
+						if(constantInts.find(operand) != constantInts.end() && isAvail)
 						{
 
 							APInt constInt = constantInts[operand];
 
-							errs() << "Setting const(" << operand << "): " << constInt << "\n";
+							//errs() << "Setting const(" << operand << "): " << constInt << "\n";
 							ConstantInt* constInst = ConstantInt::get(F.getContext(), constInt);
-							errs() << "Constant = " << *constInst << "\n";
 
+							errs() << "---------------------------------------\n";
+							errs() << "Before: " << *blockItr << "\n";
+							errs() << "Constant = " << *constInst << "\n";
 							blockItr->setOperand(i, constInst);
+							errs() << "After: " << *blockItr << "\n";
+
 						}
 					}
-					errs() << "\n";
+					//errs() << "\n";
 
 					//errs() << &*blockItr << "\n";
 				}
@@ -116,6 +119,8 @@ namespace {
 	}
   };
 }
+char Reaching::ID = 0;
+static RegisterPass<Reaching> X("project2Reaching", "The constant propagation component of project 2");
 
 char Project2::ID = 0;
-static RegisterPass<Project2> X("project2Constant", "The constant propagation component of project 2");
+static RegisterPass<Project2> Y("project2Constant", "The constant propagation component of project 2");

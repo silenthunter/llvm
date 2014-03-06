@@ -50,6 +50,7 @@ namespace
 		map<BasicBlock*, VarSet*> killSet;
 		map<BasicBlock*, VarSet*> outSet;
 		map<BasicBlock*, InSet*> inSet;
+		map<BasicBlock*, VarSet*> availSet;
 		queue<BasicBlock*> changedBlocks;
 
 		virtual bool runOnFunction(Function &F)
@@ -141,6 +142,8 @@ namespace
 				VarSet* outset = outSet[currBlock];
 				InSet* inset = inSet[currBlock];
 
+				VarSet* availset = availSet[currBlock];
+
 				bool firstCompute = false;
 				if(outset == NULL)
 				{
@@ -163,19 +166,65 @@ namespace
 					genset = new VarSet();
 					genSet[currBlock] =  genset;
 				}
+				if(availset == NULL)
+				{
+					availset = new VarSet();
+					availSet[currBlock] =  availset;
+				}
 
 				set<Value*> newOut;
 				map<Value*, BasicBlock*> newOutSrc;
 
+				//Clear
+				availset->variables.clear();
+				availset->sources.clear();
+
 				//Add IN
 				for(map<BasicBlock*, set<Value*> >::iterator blockIn = inset->variables.begin();
 				blockIn != inset->variables.end(); blockIn++)
+				{
 					for(set<Value*>::iterator strItr = blockIn->second.begin(); 
 					strItr != blockIn->second.end(); strItr++)
 					{
 						newOut.insert(*strItr);
 						newOutSrc[*strItr] = inset->sources[blockIn->first][*strItr];
+
+						//Add the first input to the avail set
+						if(blockIn == inset->variables.begin())
+						{
+							availset->variables.insert(*strItr);
+							availset->sources[*strItr] = newOutSrc[*strItr];
+						}
 					}
+
+					//Remove all non-matching entries from the avail set
+					if(blockIn != inset->variables.begin())
+					{
+						set<Value*> toRemove;
+						for(set<Value*>::iterator availItr = availset->variables.begin();
+							availItr != availset->variables.end(); availItr++)
+						{
+							//This variable is not available in all inputs
+							if(blockIn->second.find(*availItr) == blockIn->second.end())
+							{
+								toRemove.insert(*availItr);
+							}
+							else
+							{
+								BasicBlock* src1 = newOutSrc[*availItr];
+								BasicBlock* src2 = availset->sources[*availItr];
+
+								if(src1 != src2)
+									toRemove.insert(*availItr);
+							}
+						}
+
+						//Do the removal
+						for(set<Value*>::iterator remItr = toRemove.begin();
+							remItr != toRemove.end(); remItr++)
+							availset->variables.erase(*remItr);
+					}
+				}
 
 				//Remove KILL
 				for(set<Value*>::iterator strItr = killset->variables.begin(); 
@@ -251,10 +300,15 @@ namespace
 			for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
 			{
 				errs() << itr->getName() << ": ";
-				for(set<Value*>::iterator blockItr = outSet[&*itr]->variables.begin(); 
+				/*for(set<Value*>::iterator blockItr = outSet[&*itr]->variables.begin(); 
 				blockItr != outSet[&*itr]->variables.end(); blockItr++)
 				{
 					errs() << (*blockItr)->getName() << "/" << outSet[&*itr]->sources[*blockItr]->getName()<< ", ";
+				}*/
+				for(set<Value*>::iterator blockItr = availSet[&*itr]->variables.begin(); 
+				blockItr != availSet[&*itr]->variables.end(); blockItr++)
+				{
+					errs() << (*blockItr)->getName() << ", ";
 				}
 				/*for(map<BasicBlock*, set<string> >::iterator blockItr = inSet[&*itr]->variables.begin(); 
 				blockItr != inSet[&*itr]->variables.end(); blockItr++)
@@ -289,6 +343,16 @@ namespace
 			}
 		
 			return NULL;
+		}
+
+		bool available(Value* variable, BasicBlock* dest)
+		{
+			VarSet* availset = availSet[dest];
+			if(availset == NULL) return false;
+
+			if(availset->variables.find(variable) == availset->variables.end()) return false;
+
+			return true;
 		}
 	};
 

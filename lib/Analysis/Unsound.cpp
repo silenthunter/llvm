@@ -25,7 +25,13 @@ namespace {
 			set<Value*> localAssigns;
 			for(BasicBlock::iterator blockItr = itr->begin(); blockItr != itr->end(); blockItr++)
 			{
-				if(dyn_cast<AllocaInst>(&*blockItr))
+				if((!dyn_cast<Instruction>(&*blockItr) && !dyn_cast<Operator>(&*blockItr))
+					|| dyn_cast<CallInst>(&*blockItr))
+				{
+					localAssigns.insert(&*blockItr);
+					continue;
+				}
+				else if(dyn_cast<AllocaInst>(&*blockItr))
 				{
 					continue;
 				}
@@ -50,6 +56,7 @@ namespace {
 					if(localAssigns.find(oper) == localAssigns.end() && !reaching.reaches(oper, &*itr))
 					{
 						errs() << "Unsafe(" << *oper << "): " << *blockItr << "\n";
+						errs() << "Location Line: " << blockItr->getDebugLoc().getLine() << "\n";
 					}
 				}
 			}
