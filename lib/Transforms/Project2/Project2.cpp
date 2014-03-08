@@ -31,18 +31,35 @@ namespace {
 
 		for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
 		{
+			set<Value*> seenThisBlock;
 			//Go through instructions
 			for(BasicBlock::iterator blockItr = itr->begin(); blockItr != itr->end(); blockItr++)
 			{
 				if(StoreInst* SI = dyn_cast<StoreInst>(blockItr))
 				{
-
 					//errs() << *blockItr << "\n";
 
 					//Check for constant operands
 					int numOperands = blockItr->getNumOperands();
 					if(numOperands < 2) errs() << "StoreInst with less than 2 operands\n";
 					Value* oper1 = blockItr->getOperand(0);
+
+					//Check if the temporary variable is a constant
+					if(reaching.available(oper1, &*itr) || seenThisBlock.find(oper1) != seenThisBlock.end())
+					{
+						APInt constVal = constantInts[oper1];
+						ConstantInt* constInst = ConstantInt::get(F.getContext(), constVal);
+
+						errs() << "---------------------------------------\n";
+						errs() << "Before: " << *blockItr << "\n";
+						errs() << "Constant = " << *constInst << "\n";
+						blockItr->setOperand(0, constInst);
+						errs() << "After: " << *blockItr << "\n";
+
+					}
+
+					//Get the first operand again in case it's been replaced
+					oper1 = blockItr->getOperand(0);
 					Value* oper2 = blockItr->getOperand(1);
 
 					string localName = oper2->getName();
@@ -55,7 +72,8 @@ namespace {
 					{
 						//errs() << varName << " : " << &*oper2 << "\n";
 						constantInts[oper2] = CI->getValue();
-						//errs() <<"Storing(" << oper2 << "): " << CI->getValue() << "\n";
+						seenThisBlock.insert(oper2);
+						errs() <<"Storing[" << localName << "](" << oper2 << "): " << CI->getValue() << "\n";
 
 						toErase.push_back(&*blockItr);
 					}
@@ -65,10 +83,18 @@ namespace {
 				{
 					Value* operand = blockItr->getOperand(0);
 
-					if(constantInts.find(operand) != constantInts.end())
+					//If variable isn't available, we don't know that it's constant
+					bool isAvail = /*reaching.available(operand, &*itr) ||*/ seenThisBlock.find(operand) != seenThisBlock.end();
+
+					if(isAvail)
+					errs() << "Loading Avail: " << operand->getName() << "\n";
+
+					if(isAvail && constantInts.find(operand) != constantInts.end())
 					{
+						errs() << "Loaded\n";
 						APInt constVal = constantInts[operand];
 						constantInts[&*blockItr] = constVal;
+						seenThisBlock.insert(&*blockItr);
 
 						toErase.push_back(&*blockItr);
 					}
@@ -85,8 +111,10 @@ namespace {
 						bool isAvail = reaching.available(operand, &*itr);
 						if(isAvail)
 							errs() << "Reaching!!!!!!!!!!\n";
+						if(seenThisBlock.find(operand) != seenThisBlock.end())
+							errs() << "Seen!!!!!!!!!!\n";
 
-						if(constantInts.find(operand) != constantInts.end() && isAvail)
+						if(constantInts.find(operand) != constantInts.end() && (isAvail || seenThisBlock.find(operand) != seenThisBlock.end()))
 						{
 
 							APInt constInt = constantInts[operand];

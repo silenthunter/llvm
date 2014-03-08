@@ -354,6 +354,24 @@ namespace
 
 			return true;
 		}
+
+		set<Value*> getCombinedInput(BasicBlock* block)
+		{
+			set<Value*> retn;
+
+			InSet* inset = inSet[block];
+			for(map<BasicBlock*, set<Value*> >::iterator blockIn = inset->variables.begin();
+			blockIn != inset->variables.end(); blockIn++)
+			{
+				for(set<Value*>::iterator strItr = blockIn->second.begin(); 
+				strItr != blockIn->second.end(); strItr++)
+				{
+					retn.insert(*strItr);
+				}
+			}
+
+			return retn;
+		}
 	};
 
 	//char Reaching::ID = 0;
