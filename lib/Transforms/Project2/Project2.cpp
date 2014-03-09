@@ -15,6 +15,8 @@ using std::vector;
 using std::map;
 using std::string;
 
+STATISTIC(variablesReplaced, "Number of operands that were altered due to constant propagation");
+
 namespace {
   // Hello - The first implementation, without getAnalysisUsage.
   struct Project2 : public FunctionPass {
@@ -27,7 +29,8 @@ namespace {
 	virtual bool runOnFunction(Function &F)
 	{
 		Reaching &reaching = getAnalysis<Reaching>();
-		errs() << "Running Constant Transform!\n";
+		errs() << "==========================================\n";
+		errs() << "Running Constant Transform for " << F.getName() << "!\n";
 
 		for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
 		{
@@ -54,6 +57,7 @@ namespace {
 						errs() << "Before: " << *blockItr << "\n";
 						errs() << "Constant = " << *constInst << "\n";
 						blockItr->setOperand(0, constInst);
+						variablesReplaced++;
 						errs() << "After: " << *blockItr << "\n";
 
 					}
@@ -73,9 +77,11 @@ namespace {
 						//errs() << varName << " : " << &*oper2 << "\n";
 						constantInts[oper2] = CI->getValue();
 						seenThisBlock.insert(oper2);
-						errs() <<"Storing[" << localName << "](" << oper2 << "): " << CI->getValue() << "\n";
+						errs() << "---------------------------------------\n";
+						errs() <<"Storing[" << localName << "]: " << CI->getValue() << "\n";
 
 						toErase.push_back(&*blockItr);
+						variablesReplaced++;
 					}
 				}
 				//Remove temporary variables that load constant
@@ -84,19 +90,21 @@ namespace {
 					Value* operand = blockItr->getOperand(0);
 
 					//If variable isn't available, we don't know that it's constant
-					bool isAvail = /*reaching.available(operand, &*itr) ||*/ seenThisBlock.find(operand) != seenThisBlock.end();
-
-					if(isAvail)
-					errs() << "Loading Avail: " << operand->getName() << "\n";
+					bool isAvail = reaching.available(operand, &*itr)
+						|| seenThisBlock.find(operand) != seenThisBlock.end();
 
 					if(isAvail && constantInts.find(operand) != constantInts.end())
 					{
-						errs() << "Loaded\n";
+						//errs() << "Loaded\n";
 						APInt constVal = constantInts[operand];
 						constantInts[&*blockItr] = constVal;
 						seenThisBlock.insert(&*blockItr);
 
+						errs() << "---------------------------------------\n";
+						errs() <<"Load[" << operand->getName() << "]: " << constVal << "\n";
+
 						toErase.push_back(&*blockItr);
+						variablesReplaced++;
 					}
 				}
 				//Replace constants
@@ -109,10 +117,10 @@ namespace {
 						Value* operand = blockItr->getOperand(i);
 
 						bool isAvail = reaching.available(operand, &*itr);
-						if(isAvail)
+						/*if(isAvail)
 							errs() << "Reaching!!!!!!!!!!\n";
 						if(seenThisBlock.find(operand) != seenThisBlock.end())
-							errs() << "Seen!!!!!!!!!!\n";
+							errs() << "Seen!!!!!!!!!!\n";*/
 
 						if(constantInts.find(operand) != constantInts.end() && (isAvail || seenThisBlock.find(operand) != seenThisBlock.end()))
 						{
@@ -126,6 +134,7 @@ namespace {
 							errs() << "Before: " << *blockItr << "\n";
 							errs() << "Constant = " << *constInst << "\n";
 							blockItr->setOperand(i, constInst);
+							variablesReplaced++;
 							errs() << "After: " << *blockItr << "\n";
 
 						}

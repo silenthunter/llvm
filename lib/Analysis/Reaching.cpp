@@ -1,6 +1,8 @@
 #ifndef PROJECT2_REACH
 #define PROJECT2_REACH
 
+#define PRINT_REACHING 
+
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -81,13 +83,13 @@ namespace
 							val = dyn_cast<Instruction>(val->getOperand(1));
 						}
 
-						errs() << val->getOpcodeName() << " : ";
+						//errs() << val->getOpcodeName() << " : ";
 						string localName = val->getName();
 						string varName = val->getName();
 						varName.append("/");
 						varName.append(currBlock->getName());
 
-						errs() << varName << "\n";
+						//errs() << varName << "\n";
 
 						//Add this variable to the genSet
 						bool firstSeen = false;
@@ -122,8 +124,8 @@ namespace
 
 								if(*strItr == val)
 								{
-									errs() << "Killed: " << (*strItr)->getName()
-										<< "(" << *strItr << ")\n";
+									//errs() << "Killed: " << (*strItr)->getName()
+										//<< "(" << *strItr << ")\n";
 									killset->variables.insert(*strItr);
 								}
 							}
@@ -131,7 +133,7 @@ namespace
 
 						if(firstSeen) killSet[currBlock] = killset;
 
-						errs() << "\n";
+						//errs() << "\n";
 					}
 				}//End instruction loop
 
@@ -294,6 +296,7 @@ namespace
 
 			}
 
+#ifdef PRINT_REACHING
 			errs() << "------------------------------------\n";
 			errs() << F.getName() << "\n";
 
@@ -318,6 +321,7 @@ namespace
 				errs() << "\n";
 			}
 			errs() << "------------------------------------\n";
+#endif
 
 			return false;
 		}
