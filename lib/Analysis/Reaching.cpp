@@ -322,27 +322,23 @@ namespace
 			return false;
 		}
 
-		BasicBlock* reaches(Value* variable, BasicBlock* dest)
+		set<BasicBlock*> reaches(Value* variable, BasicBlock* dest)
 		{
-
-			//See if the variable is generated in this block
-			VarSet* genset = genSet[dest];
-			/*if(genset->variables.find(variable) != genset->variables.end())
-				return dest;*/
+			set<BasicBlock*> retn;
 
 			InSet* inset = inSet[dest];
-			if(inset == NULL) return NULL;
+			if(inset == NULL) return retn;
 			//See if this is an input variable
 			for(map<BasicBlock*, map<Value*, BasicBlock*> >::iterator itr = inset->sources.begin();
 				itr != inset->sources.end(); itr++)
 			{
 				if(itr->second.find(variable) != itr->second.end())
 				{
-					return itr->second[variable];
+					retn.insert(itr->second[variable]);
 				}
 			}
 		
-			return NULL;
+			return retn;
 		}
 
 		bool available(Value* variable, BasicBlock* dest)

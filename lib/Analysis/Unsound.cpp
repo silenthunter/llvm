@@ -20,9 +20,13 @@ namespace {
 	{
 		Reaching &reaching = getAnalysis<Reaching>();
 
+		set<Value*> assigned;
+		set<Value*> used;
+
 		for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
 		{
 			set<Value*> localAssigns;
+
 			for(BasicBlock::iterator blockItr = itr->begin(); blockItr != itr->end(); blockItr++)
 			{
 				if((!dyn_cast<Instruction>(&*blockItr) && !dyn_cast<Operator>(&*blockItr))
@@ -33,6 +37,7 @@ namespace {
 				}
 				else if(dyn_cast<AllocaInst>(&*blockItr))
 				{
+					assigned.insert(&*blockItr);
 					continue;
 				}
 				else if(dyn_cast<StoreInst>(&*blockItr))
@@ -49,16 +54,31 @@ namespace {
 				{
 					Value* oper = blockItr->getOperand(i);
 
+					used.insert(oper);
+
 					//We don't care about jumps to basic block or the use of constants
 					if(dyn_cast<Constant>(oper))continue;
 					if(dyn_cast<BasicBlock>(oper))continue;
 
-					if(localAssigns.find(oper) == localAssigns.end() && !reaching.reaches(oper, &*itr))
+					if(localAssigns.find(oper) == localAssigns.end() && reaching.reaches(oper, &*itr).size() == 0)
 					{
-						errs() << "Unsafe(" << *oper << "): " << *blockItr << "\n";
+						errs() << "Unsafe: " << *blockItr << "\n";
 						errs() << "Location Line: " << blockItr->getDebugLoc().getLine() << "\n";
 					}
 				}
+			}
+
+		}
+
+		//See which variables were assigned, but never read
+		for(set<Value*>::iterator itr = assigned.begin(); itr != assigned.end(); itr++)
+		{
+			Instruction* val = dyn_cast<Instruction>(*itr);
+			if(used.find(val) == used.end())
+			{
+				errs() << "Variable Unused: " << val->getName();
+				errs() << ". In function: " << val->getParent()->getParent()->getName() << "\n";
+				//errs() << ". Defined at line: " << val->getDebugLoc().getLine() << "\n";
 			}
 		}
 
