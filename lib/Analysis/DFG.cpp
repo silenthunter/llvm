@@ -1,5 +1,7 @@
 #ifdef NOTDEF
+#define DEBUG_TYPE "Project2DFG"
 
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -28,6 +30,8 @@ using std::pair;
 using std::stack;
 using std::vector;
 
+STATISTIC(dfgEdges, "Number of edges used in the DFG");
+
 namespace
 {
 	struct DFG : public FunctionPass
@@ -36,14 +40,63 @@ namespace
 		struct dfgEdge
 		{
 			public:
-			map<BasicBlock*, set<Value*> > data;
+			map<BasicBlock*, set<Value*>* > data;
 		};
 
 		set<vector<BasicBlock*>* > regions;
 		map<BasicBlock*, vector<BasicBlock*>* > regionMap;
 
+		map<BasicBlock*, dfgEdge*> edges;
+
 		static char ID;
 		DFG() : FunctionPass(ID){}
+
+		void addEdge(Value* val, BasicBlock* src, BasicBlock* dest)
+		{
+			dfgEdges++;
+			dfgEdge* edge = edges[src];
+
+			if(edge == NULL)
+			{
+				edge = new dfgEdge();
+				edges[src] = edge;
+			}
+
+			set<Value*>* edgeValues = edge->data[dest];
+
+			if(edgeValues == NULL)
+			{
+				edgeValues = new set<Value*>();
+				edge->data[dest] = edgeValues;
+			}
+
+			edgeValues->insert(val);
+
+		}
+
+		void printBlockInfo(BasicBlock* block)
+		{
+			errs() << "--------------------------------------\n";
+			errs() << "===" << block->getName() << "===\n";
+
+			dfgEdge* edge = edges[block];
+			if(edge == NULL) return;
+
+			for(map<BasicBlock*, set<Value*>* >::iterator itr = edge->data.begin(); itr != edge->data.end(); itr++)
+			{
+				errs() << itr->first->getName() << ": ";
+
+				for(set<Value*>::iterator valItr = itr->second->begin(); valItr != itr->second->end(); valItr++)
+				{
+					errs() << (*valItr)->getName() << ", ";
+				}
+
+				errs() << "\n";
+			}
+
+
+			errs() << "--------------------------------------\n";
+		}
 
 		virtual bool runOnFunction(Function &F)
 		{
@@ -143,8 +196,14 @@ namespace
 								for(set<BasicBlock*>::iterator prevItr = prevBlocks.begin();
 									prevItr != prevBlocks.end(); prevItr++)
 								{
-									errs() << "[" << currBlock->getName() << "]";
-									errs() << (*prevItr)->getName() << "/" << operand->getName() << "\n";
+									set<BasicBlock*> srcBlocks = reaching.getSrc(operand, currBlock);
+
+									for(set<BasicBlock*>::iterator srcBlock = srcBlocks.begin();
+										srcBlock != srcBlocks.end(); srcBlock++)
+										addEdge(operand, *srcBlock, currBlock);
+
+									//errs() << "[" << currBlock->getName() << "]";
+									//errs() << (*prevItr)->getName() << "/" << operand->getName() << "\n";
 								}
 							}
 						}
@@ -160,6 +219,11 @@ namespace
 					if(seen.find(succ) == seen.end())
 						blocks.push(succ);
 				}
+			}
+
+			for(Function::iterator itr = F.begin(); itr != F.end(); itr++)
+			{
+				printBlockInfo(&*itr);
 			}
 
 			return false;

@@ -1,3 +1,4 @@
+//#ifdef NOTDEF
 #define DEBUG_TYPE "Project2Unsound"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Function.h"
@@ -97,3 +98,4 @@ static RegisterPass<Reaching> X("reaching", "CSE6142 Project 2 Reaching Pass", f
 
 char Unsound::ID = 0;
 static RegisterPass<Unsound> Y("project2Unsound", "Finds unsound variable uses for project 2");
+//#endif

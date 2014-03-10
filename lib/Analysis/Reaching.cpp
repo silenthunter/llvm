@@ -1,6 +1,8 @@
 #ifndef PROJECT2_REACH
 #define PROJECT2_REACH
 
+#define DEBUG_TYPE "Reaching_Count"
+
 #define PRINT_REACHING 
 
 #include "llvm/Pass.h"
@@ -13,6 +15,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
+#include "llvm/ADT/Statistic.h"
 #include <utility>
 #include <iostream>
 #include <set>
@@ -25,6 +28,8 @@ using std::set;
 using std::queue;
 using std::string;
 using std::pair;
+
+STATISTIC(reachingEdges, "Number of edges used in iterative reaching analysis");
 
 namespace
 {
@@ -311,6 +316,7 @@ namespace
 				for(set<Value*>::iterator blockItr = availSet[&*itr]->variables.begin(); 
 				blockItr != availSet[&*itr]->variables.end(); blockItr++)
 				{
+					reachingEdges++;
 					errs() << (*blockItr)->getName() << ", ";
 				}
 				/*for(map<BasicBlock*, set<string> >::iterator blockItr = inSet[&*itr]->variables.begin(); 
@@ -367,6 +373,28 @@ namespace
 				strItr != blockIn->second.end(); strItr++)
 				{
 					retn.insert(*strItr);
+				}
+			}
+
+			return retn;
+		}
+
+		set<BasicBlock*> getSrc(Value* val, BasicBlock* block)
+		{
+			set<BasicBlock*> retn;
+
+			InSet* inset = inSet[block];
+			for(map<BasicBlock*, set<Value*> >::iterator blockIn = inset->variables.begin();
+			blockIn != inset->variables.end(); blockIn++)
+			{
+				for(set<Value*>::iterator strItr = blockIn->second.begin(); 
+					strItr != blockIn->second.end(); strItr++)
+				{
+					if(*strItr == val)
+					{
+						BasicBlock* srcBlock = inset->sources[blockIn->first][*strItr];
+						retn.insert(srcBlock);
+					}
 				}
 			}
 
